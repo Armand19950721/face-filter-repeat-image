@@ -74,12 +74,13 @@
 3. **常用參數**
    - `--threshold`：分群嚴格度（預設 0.5，數值越小越嚴格）
    - `--det-thresh`：人臉偵測信心分數（預設 0.3，遇到漏檢可調低如 0.15）
-   - `--no-face`：指定無人臉圖片的目標資料夾（預設 ./no-face）
+   - `--no-face`：指定無人臉圖片的目標資料夾（預設 ./no-face） 
    - `--debug`：顯示每張臉的距離、分群狀況，方便調參
 
    範例：
    ```bash
-   python dedup_faces_insight.py --debug --det-thresh 0.07 --threshold 0.5 --no-face ./無臉圖片
+   python dedup_faces_insight.py --debug --det-thresh 0.1 --threshold 0.5
+   python hybrid_face_dedup.py --debug --det-thresh 0.1 --threshold 0.5 
    ```
 
 ---
