@@ -1,143 +1,103 @@
-# Face Filter: 人臉去重搬移工具
+# 增強型ONNX人臉去重程序 (Enhanced ONNX Face Deduplication)
 
-本專案可自動從資料夾中找出「有重複人臉」的照片，並將這些照片搬移到 result 資料夾，剩下的 source 只保留未重複的人臉。同時，能自動將沒有臉孔的圖片移至 no-face 資料夾。
+該程序是一個基於ONNX模型的人臉檢測與特徵提取系統，專門用於處理難以識別的人臉圖像。此版本專注於提高特徵提取成功率，實現了多種圖像增強技術。
 
-## 特色
-- **多模型檢測**：使用 ONNX、Dlib CNN 和 InsightFace 多種檢測器結合，提高檢測成功率
-- **精準人臉偵測**：尤其針對困難角度、光線或被遮擋的人臉有更好表現
-- **高質量特徵提取**：使用 InsightFace ArcFace 精確提取臉部特徵
-- **智能分群**：DBSCAN 技術自動判斷同一人臉
-- **可配置**：多種參數可調整，適應不同應用場景
+## 特徵提取增強技術
 
-## 檢測模型比較
+1. **多角度嘗試**：在特徵提取前對裁剪區域進行輕微旋轉（±15°，±30°）
+2. **多種圖像增強組合**：亮度調整、對比度增強、高斯模糊、直方圖均衡化等
+3. **人臉對齊**：使用檢測到的關鍵點進行面部對齊，再提取特徵
+4. **擴大邊界**：將邊緣從20%增加到40%，確保捕獲完整臉部
+5. **調整InsightFace的配置參數**：降低檢測閾值，提高靈敏度
 
-| 模型 | 優勢 | 劣勢 | 適用場景 |
-|------|------|------|----------|
-| ONNX | 速度快、輕量化 | 對非正面人臉效果較差 | 標準正面人像照片 |
-| Dlib CNN | 非常精確，支持各種角度、光線 | 速度較慢 | 困難人臉檢測場景 |
-| InsightFace | 與特徵提取整合良好 | 特定場景可能失效 | 作為最後備援方案 |
+## 環境要求
 
-## 處理流程
-
-1. **多模型人臉偵測**：按照設定順序嘗試多種檢測器
-   - 預設順序：ONNX → Dlib CNN → InsightFace
-   - 一旦成功檢測到人臉就停止嘗試
-
-2. **特徵提取**：使用 ArcFace 為每個人臉生成特徵向量
-   - 將每個人臉轉換成512維的特徵向量
-   - 標準化向量以便於後續比較
-
-3. **相似度比較**：計算人臉特徵向量間的餘弦距離
-   - 距離小於閾值（預設0.5）的人臉被視為相同人
-   - 餘弦距離 = 1 - 餘弦相似度
-
-4. **人臉聚類**：使用 DBSCAN 算法將相似人臉分組
-   - 自動將相似人臉分到同一群組
-   - 不需預先指定人臉數量
-
-5. **照片移動**：
-   - 將包含重複人臉的圖片移至 result 目錄
-   - 將沒有人臉的圖片移至 no-face 目錄
-   - source 目錄保留只有獨特人臉的圖片
-
----
+- Python 3.8+
+- CUDA支持（GPU加速）
+- 依賴庫：
+  - onnxruntime-gpu (GPU運行)
+  - insightface
+  - opencv-python
+  - numpy
+  - scikit-learn
 
 ## 安裝步驟
 
-1. **建立虛擬環境（建議）**
-   ```bash
-   python -m venv .venv
-   # 啟動虛擬環境
-   # Windows:
-   .\.venv\Scripts\activate
-   # macOS/Linux:
-   source .venv/bin/activate
-   ```
+1. 克隆或下載本倉庫
+2. 安裝依賴：
+```
+pip install -r requirements.txt
+```
+3. 安裝GPU支持（可選但推薦）：
+```
+pip install onnxruntime-gpu
+```
 
-2. **安裝相依套件**
-   ```bash
-   pip install -r requirements.txt
-   ```
+## 使用方法
 
-3. **安裝 Dlib（可選但建議）**
-   ```bash
-   # 先安裝 CMake (Windows 用戶)
-   # 從 https://cmake.org/download/ 下載安裝
-   
-   # 然後安裝 dlib
-   pip install dlib
-   ```
+基本用法：
 
----
+```
+python enhanced_onnx_face_dedup.py --source ./source --result ./result --no-face ./no-face
+```
 
-## 使用方式
+### 命令行參數
 
-1. **準備資料夾**
-   - 將所有要去重的圖片放到 `./source` 資料夾
-   - 確保 `./result` 資料夾存在（或讓程式自動建立）
-   - 程式會自動建立 `./no-face` 資料夾存放未偵測到臉孔的圖片
+| 參數 | 說明 | 默認值 |
+|------|------|--------|
+| `--source` | 輸入圖片目錄 | ./source |
+| `--result` | 重複臉部圖片輸出目錄 | ./result |
+| `--no-face` | 無臉部圖片輸出目錄 | ./no-face |
+| `--threshold` | DBSCAN 余弦距離閾值 (較小數值 → 較嚴格) | 0.5 |
+| `--det-thresh` | 人臉偵測置信度閾值 | 0.3 |
+| `--ctx-id` | GPU id; 使用 -1 為只用 CPU | 0 |
+| `--model` | InsightFace 模型名稱 | buffalo_l |
+| `--debug` | 顯示除錯訊息 | False |
+| `--det-size` | InsightFace 偵測圖片大小 | 640 |
+| `--batch-size` | 批次處理圖片數量 (僅適用於 GPU) | 16 |
+| `--clear-gpu` | 每批次後清理 GPU 記憶體 | False |
+| `--face-margin` | 人臉邊界擴展比例 | 0.4 |
+| `--limit` | 處理前 N 張圖片 (0 = 處理全部) | 0 |
+| `--disable-rotations` | 禁用多角度嘗試 | False |
+| `--disable-alignment` | 禁用人臉對齊 | False |
+| `--disable-enhancements` | 禁用圖像增強 | False |
 
-2. **執行主程式**
-   ```bash
-   python multi_model_face_demo.py
-   ```
-   預設會：
-   - 按順序使用 ONNX、Dlib CNN、InsightFace 偵測器
-   - 將無人臉的圖片搬到 `./no-face`
-   - 自動分群
-   - 將有重複人臉的照片搬到 `./result`
-   - `./source` 只留下未重複的人臉
+## GPU支持設置
 
-3. **進階用法**
-   ```bash
-   # 使用純 InsightFace 檢測，適合速度優先的情況
-   python multi_model_face_demo.py --detector-order insightface
-   
-   # 使用 Dlib CNN 高精度檢測，提高上採樣次數以檢測小臉
-   python multi_model_face_demo.py --detector-order dlib --dlib-upsample 2
-   
-   # 完整的檢測管道，對於困難圖像，提高置信度閾值
-   python multi_model_face_demo.py --det-thresh 0.1
-   ```
+本程序支持GPU加速，推薦使用NVIDIA GPU運行。配置GPU支持的方法：
 
-4. **常用參數**
-   - `--threshold`：分群嚴格度（預設 0.5，數值越小越嚴格）
-   - `--det-thresh`：人臉偵測信心分數（預設 0.1，遇到漏檢可調低）
-   - `--no-face`：指定無人臉圖片的目標資料夾（預設 ./no-face） 
-   - `--debug`：顯示每張臉的距離、分群狀況，方便調參
-   - `--detector-order`：檢測器使用順序，如：`onnx,dlib,insightface`
-   - `--dlib-upsample`：Dlib CNN 上採樣次數 (0-2)，提高可檢測更小的臉
-   - `--skip-dlib`：跳過 Dlib CNN 檢測以提高速度
+1. 確保已安裝CUDA和cuDNN
+2. 安裝GPU版本的ONNX Runtime: `pip install onnxruntime-gpu`
+3. 使用以下方式啟用GPU:
+   - 設置環境變數: `set FORCE_GPU=1` (Windows) 或 `export FORCE_GPU=1` (Linux/Mac)
+   - 或修改程式碼中的默認設置（已設為自動使用GPU）
 
----
+### 為RTX顯卡優化的配置
 
-## 參數說明
-| 參數           | 說明                                 | 預設值      |
-|----------------|--------------------------------------|-------------|
-| --source       | 輸入圖片資料夾                      | ./source    |
-| --result       | 搬移重複人臉的資料夾                | ./result    |
-| --no-face      | 搬移無人臉圖片的資料夾              | ./no-face   |
-| --threshold    | DBSCAN 分群的 cosine 距離閾值        | 0.5         |
-| --det-thresh   | 人臉偵測信心分數下限                | 0.1         |
-| --model        | InsightFace 模型包（buffalo_l/antelopev2）| buffalo_l |
-| --ctx-id       | GPU id（-1 表示只用 CPU）           | 0           |
-| --detector-order | 檢測器使用順序 (逗號分隔)           | onnx,dlib,insightface |
-| --dlib-upsample | Dlib CNN 上採樣次數 (0-2)           | 1           |
-| --debug        | 顯示 debug 訊息                      | (關閉)      |
+如果您使用RTX系列顯卡(如RTX 3070)，建議使用以下參數以獲得最佳性能：
 
----
+```
+python enhanced_onnx_face_dedup.py --batch-size 32 --det-size 960
+```
 
-## 常見問題
-- **有些臉沒被偵測到？**
-  - 嘗試 `--det-thresh 0.05` 降低置信度閾值
-  - 增加 `--dlib-upsample 2` 提高 Dlib 檢測小臉的能力
-  - 調整檢測器順序 `--detector-order dlib,onnx,insightface` 優先使用更準確的檢測器
-- **同一人不同角度沒被歸為同群？**
-  - 請嘗試 `--threshold 0.55` 或 0.6
-- **運行速度慢？**
-  - 使用 `--skip-dlib` 跳過 Dlib CNN 檢測器（會犧牲一些準確度）
-  - 使用 `--detector-order onnx,insightface` 只用較快的檢測器
-  - 建議用 GPU 執行以獲得更好性能
+## 程序運行流程
+
+1. 載入人臉檢測和特徵提取模型
+2. 掃描源目錄中的所有圖像
+3. 對每張圖像進行人臉檢測
+4. 使用增強技術對難識別的人臉進行處理
+5. 提取人臉特徵向量
+6. 使用DBSCAN聚類算法對相似人臉進行分組
+7. 將包含重複人臉的圖像移至結果目錄
+8. 將無人臉的圖像移至指定目錄
+
+## 故障排除
+
+- **GPU不可用**: 如果出現`LoadLibrary failed with error 126`等錯誤，表示CUDA庫無法載入
+  - 解決方案: 重新安裝CUDA Toolkit和onnxruntime-gpu，確保版本兼容
+  - 示例: `pip install onnxruntime-gpu==1.16.3`
+- **記憶體不足**: 降低批次大小(`--batch-size`)和檢測尺寸(`--det-size`)
+- **人臉檢測失敗**: 使用`--debug`模式檢查詳細日誌，嘗試調整檢測閾值(`--det-thresh`)
 
 ---
 

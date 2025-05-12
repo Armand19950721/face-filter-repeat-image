@@ -65,7 +65,7 @@ def check_cuda_availability(ctx_id: int) -> bool:
         return False
     
     # 檢查環境變數是否強制使用 GPU
-    force_gpu = os.environ.get('FORCE_GPU', '0').lower() in ('1', 'true', 'yes')
+    force_gpu = os.environ.get('FORCE_GPU', '1').lower() in ('1', 'true', 'yes')
     
     try:
         providers = ort.get_available_providers()
